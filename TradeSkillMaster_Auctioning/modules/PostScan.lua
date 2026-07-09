@@ -575,3 +575,51 @@ function Post:DoneScanning()
 	isScanning = false
 	return totalToPost
 end
+function Post:GetQueueItemInfo(itemString)
+	for _, data in ipairs(postQueue) do
+		if data.itemString == itemString then
+			return data
+		end
+	end
+	return nil
+end
+
+function Post:DoFlexAction(itemString, bid, buyout, stackSize, numStacks, postTime)
+	local bag, slot = Post:FindItemSlot(itemString)
+	if not bag or not slot then
+		TSM:Printf(L["Could not find %s in your bags."], select(2, TSMAPI:GetSafeItemInfo(itemString)) or itemString)
+		return false
+	end
+	
+	local _, _, quantity = GetContainerItemInfo(bag, slot)
+	if quantity and stackSize < quantity then
+		SplitContainerItem(bag, slot, stackSize)
+	else
+		PickupContainerItem(bag, slot)
+	end
+	
+	ClickAuctionSellItemButton(AuctionsItemButton, "LeftButton")
+	StartAuction(bid, buyout, postTime, stackSize, numStacks)
+	
+	-- State Management: Decrement quantities in postQueue to prevent desync
+	local totalPostedQuantity = stackSize * numStacks
+	local entriesToRemove = {}
+	for i, data in ipairs(postQueue) do
+		if data.itemString == itemString then
+			if totalPostedQuantity >= data.stackSize then
+				totalPostedQuantity = totalPostedQuantity - data.stackSize
+				tinsert(entriesToRemove, 1, i) -- Insert at beginning to remove from end backwards
+			else
+				-- Partial consumption is tricky because TSM queue entries are distinct stacks.
+				-- For safety, we remove whatever we fully consumed.
+				break
+			end
+		end
+		if totalPostedQuantity <= 0 then break end
+	end
+	for _, idx in ipairs(entriesToRemove) do
+		tremove(postQueue, idx)
+	end
+	
+	return true
+end

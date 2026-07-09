@@ -80,6 +80,7 @@ function private:CreateButtons(parent)
 	frame.Enable = function(self)
 		if private.mode == "Post" then
 			self.post:Enable()
+			if self.flexPost then self.flexPost:Enable() end
 		elseif private.mode == "Cancel" then
 			self.cancel:Enable()
 		end
@@ -90,6 +91,7 @@ function private:CreateButtons(parent)
 	frame.Disable = function(self)
 		if private.mode == "Post" then
 			self.post:Disable()
+			if self.flexPost then self.flexPost:Disable() end
 		elseif private.mode == "Cancel" then
 			self.cancel:Disable()
 		end
@@ -99,11 +101,16 @@ function private:CreateButtons(parent)
 	frame.UpdateMode = function(self)
 		if private.mode == "Post" then
 			self.post:Show()
+			if self.flexPost then self.flexPost:Show() end
 			self.cancel:Hide()
 			self.cancel:Disable()
 		elseif private.mode == "Cancel" then
 			self.post:Hide()
 			self.post:Disable()
+			if self.flexPost then 
+				self.flexPost:Hide() 
+				self.flexPost:Disable()
+			end
 			self.cancel:Show()
 		end
 		self.stop:Enable()
@@ -113,6 +120,12 @@ function private:CreateButtons(parent)
 		if self.which == "stop" and self.isDone then
 			GUI:HideSelectionFrame()
 			private.selectionFrame:Show()
+		elseif self.which == "flexPost" then
+			if private.selectedLogItem then
+				private:ShowCustomPostWindow(private.selectedLogItem)
+			else
+				TSM:Print(L["Please select an item from the log list first."])
+			end
 		elseif frame:IsVisible() and private.OnAction then
 			private:OnAction(self.which)
 		end
@@ -139,6 +152,15 @@ function private:CreateButtons(parent)
 	
 	local button = TSMAPI.GUI:CreateButton(frame, 18)
 	button:SetPoint("TOPLEFT", frame.post, "TOPRIGHT", 5, 0)
+	button:SetWidth(80)
+	button:SetHeight(height)
+	button:SetText(L["Flex Post"])
+	button.which = "flexPost"
+	button:SetScript("OnClick", OnClick)
+	frame.flexPost = button
+
+	local button = TSMAPI.GUI:CreateButton(frame, 18)
+	button:SetPoint("TOPLEFT", frame.flexPost, "TOPRIGHT", 5, 0)
 	button:SetWidth(60)
 	button:SetHeight(height)
 	button:SetText(L["Skip"])
@@ -566,6 +588,7 @@ function private:CreateLogST(parent)
 		end,
 		OnClick = function(_, data, _, button)
 			if button == "LeftButton" then
+				private.selectedLogItem = data
 				private.contentButtons:UnlockHighlight()
 				private.logST:Hide()
 				private.auctionsST:Show()
@@ -714,11 +737,13 @@ function private:UpdateLogSTData()
 end
 
 function private:UpdateLogSTHighlight(currentItem)
-	if not currentItem then return private.logST:SetHighlighted() end
+	if not currentItem and not private.selectedLogItem then return private.logST:SetHighlighted() end
 	
 	for i=1, #private.logST.rowData do
 		local data = private.logST.rowData[i]
-		if data and data.operation == currentItem.operation and data.itemString == currentItem.itemString then
+		if currentItem and data and data.operation == currentItem.operation and data.itemString == currentItem.itemString then
+			private.logST:SetHighlighted(i)
+		elseif private.selectedLogItem and data and data.itemString == private.selectedLogItem.itemString then
 			private.logST:SetHighlighted(i)
 		end
 	end
@@ -1018,4 +1043,141 @@ function GUI:HideSelectionFrame()
 	if private.scanFrame then private.scanFrame:Hide() end
 	TSMAPI.AuctionScan:StopScan()
 	TSM.Reset:Hide()
+end
+local flexPostFrame = nil
+
+function private:ShowCustomPostWindow(data)
+	if not flexPostFrame then
+		flexPostFrame = CreateFrame("Frame", "TSMFlexPostFrame", UIParent)
+		TSMAPI.Design:SetFrameBackdropColor(flexPostFrame)
+		flexPostFrame:SetPoint("CENTER")
+		flexPostFrame:SetFrameStrata("DIALOG")
+		flexPostFrame:SetWidth(350)
+		flexPostFrame:SetHeight(250)
+		flexPostFrame:EnableMouse(true)
+		flexPostFrame:SetMovable(true)
+		flexPostFrame:RegisterForDrag("LeftButton")
+		flexPostFrame:SetScript("OnDragStart", flexPostFrame.StartMoving)
+		flexPostFrame:SetScript("OnDragStop", flexPostFrame.StopMovingOrSizing)
+		
+		local title = TSMAPI.GUI:CreateLabel(flexPostFrame)
+		title:SetPoint("TOP", 0, -10)
+		title:SetText(L["Flex Post"])
+		
+		local stackSizeLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
+		stackSizeLabel:SetPoint("TOPLEFT", 15, -40)
+		stackSizeLabel:SetText(L["Stack Size:"])
+		local stackSizeBox = CreateFrame("EditBox", nil, flexPostFrame, "InputBoxTemplate")
+		stackSizeBox:SetPoint("TOPLEFT", 120, -35)
+		stackSizeBox:SetWidth(50)
+		stackSizeBox:SetHeight(20)
+		stackSizeBox:SetAutoFocus(false)
+		stackSizeBox:SetNumeric(true)
+		flexPostFrame.stackSizeBox = stackSizeBox
+		
+		local numStacksLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
+		numStacksLabel:SetPoint("TOPLEFT", 15, -70)
+		numStacksLabel:SetText(L["Num Stacks:"])
+		local numStacksBox = CreateFrame("EditBox", nil, flexPostFrame, "InputBoxTemplate")
+		numStacksBox:SetPoint("TOPLEFT", 120, -65)
+		numStacksBox:SetWidth(50)
+		numStacksBox:SetHeight(20)
+		numStacksBox:SetAutoFocus(false)
+		numStacksBox:SetNumeric(true)
+		flexPostFrame.numStacksBox = numStacksBox
+
+		local bidLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
+		bidLabel:SetPoint("TOPLEFT", 15, -100)
+		bidLabel:SetText(L["Bid (per stack):"])
+		local bidBox = CreateFrame("Frame", "TSMFlexPostBidBox", flexPostFrame, "MoneyInputFrameTemplate")
+		bidBox:SetPoint("TOPLEFT", 120, -100)
+		flexPostFrame.bidBox = bidBox
+		
+		local buyoutLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
+		buyoutLabel:SetPoint("TOPLEFT", 15, -130)
+		buyoutLabel:SetText(L["Buyout (per stack):"])
+		local buyoutBox = CreateFrame("Frame", "TSMFlexPostBuyoutBox", flexPostFrame, "MoneyInputFrameTemplate")
+		buyoutBox:SetPoint("TOPLEFT", 145, -130)
+		flexPostFrame.buyoutBox = buyoutBox
+		
+		local confirmBtn = TSMAPI.GUI:CreateButton(flexPostFrame, 16)
+		confirmBtn:SetPoint("BOTTOMLEFT", 10, 10)
+		confirmBtn:SetWidth(150)
+		confirmBtn:SetHeight(20)
+		confirmBtn:SetText(L["Confirm Post"])
+		confirmBtn:SetScript("OnClick", function()
+			local stackSize = tonumber(flexPostFrame.stackSizeBox:GetText()) or 1
+			local numStacks = tonumber(flexPostFrame.numStacksBox:GetText()) or 1
+			local bid = MoneyInputFrame_GetCopper(flexPostFrame.bidBox)
+			local buyout = MoneyInputFrame_GetCopper(flexPostFrame.buyoutBox)
+			
+			local postTime = flexPostFrame.postTime or 2
+			
+			flexPostFrame.confirmBtn:Disable()
+			if private.buttons and private.buttons.post then private.buttons.post:Disable() end
+			if private.buttons and private.buttons.flexPost then private.buttons.flexPost:Disable() end
+			
+			local success = TSM.Post:DoFlexAction(flexPostFrame.itemString, bid, buyout, stackSize, numStacks, postTime)
+			
+			if not success then
+				flexPostFrame.confirmBtn:Enable()
+				if private.buttons and private.buttons.post then private.buttons.post:Enable() end
+				if private.buttons and private.buttons.flexPost then private.buttons.flexPost:Enable() end
+			end
+			
+			if numStacks == 1 and success then
+				flexPostFrame:Hide()
+				if private.buttons and private.buttons.post then private.buttons.post:Enable() end
+				if private.buttons and private.buttons.flexPost then private.buttons.flexPost:Enable() end
+				GUI:UpdateSTData()
+			end
+		end)
+		flexPostFrame.confirmBtn = confirmBtn
+		
+		local cancelBtn = TSMAPI.GUI:CreateButton(flexPostFrame, 16)
+		cancelBtn:SetPoint("BOTTOMRIGHT", -10, 10)
+		cancelBtn:SetWidth(150)
+		cancelBtn:SetHeight(20)
+		cancelBtn:SetText(L["Cancel"])
+		cancelBtn:SetScript("OnClick", function() flexPostFrame:Hide() end)
+		
+		flexPostFrame:RegisterEvent("AUCTION_MULTISELL_UPDATE")
+		flexPostFrame:RegisterEvent("AUCTION_MULTISELL_FAILURE")
+		flexPostFrame:SetScript("OnEvent", function(self, event, ...)
+			if event == "AUCTION_MULTISELL_UPDATE" then
+				local current, total = ...
+				if current == total then
+					self:Hide()
+					if private.buttons and private.buttons.post then private.buttons.post:Enable() end
+					if private.buttons and private.buttons.flexPost then private.buttons.flexPost:Enable() end
+					GUI:UpdateSTData()
+				end
+			elseif event == "AUCTION_MULTISELL_FAILURE" then
+				self:Hide()
+				if private.buttons and private.buttons.post then private.buttons.post:Enable() end
+				if private.buttons and private.buttons.flexPost then private.buttons.flexPost:Enable() end
+			end
+		end)
+	end
+	
+	flexPostFrame.itemString = data.itemString
+	
+	local queueInfo = TSM.Post:GetQueueItemInfo(data.itemString)
+	if queueInfo then
+		flexPostFrame.stackSizeBox:SetText(tostring(queueInfo.stackSize or 1))
+		flexPostFrame.numStacksBox:SetText(tostring(queueInfo.numStacks or 1))
+		MoneyInputFrame_SetCopper(flexPostFrame.bidBox, queueInfo.bid or 0)
+		MoneyInputFrame_SetCopper(flexPostFrame.buyoutBox, queueInfo.buyout or 0)
+		flexPostFrame.postTime = queueInfo.postTime or 2
+	else
+		flexPostFrame.stackSizeBox:SetText("1")
+		flexPostFrame.numStacksBox:SetText("1")
+		local prices = TSM.Util:GetItemPrices(data.operation, data.itemString)
+		MoneyInputFrame_SetCopper(flexPostFrame.bidBox, (prices and prices.minPrice) or 0)
+		MoneyInputFrame_SetCopper(flexPostFrame.buyoutBox, (prices and prices.normalPrice) or 0)
+		flexPostFrame.postTime = 2
+	end
+	
+	flexPostFrame.confirmBtn:Enable()
+	flexPostFrame:Show()
 end
