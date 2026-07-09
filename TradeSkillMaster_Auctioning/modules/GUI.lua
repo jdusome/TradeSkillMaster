@@ -1064,39 +1064,75 @@ function private:ShowCustomPostWindow(data)
 		title:SetPoint("TOP", 0, -10)
 		title:SetText(L["Flex Post"])
 		
-		local stackSizeLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
-		stackSizeLabel:SetPoint("TOPLEFT", 15, -40)
-		stackSizeLabel:SetText(L["Stack Size:"])
-		local stackSizeBox = TSMAPI.GUI:CreateInputBox(flexPostFrame, "TSMFlexPostStackSizeEditbox")
-		stackSizeBox:SetPoint("TOPLEFT", 140, -35)
-		stackSizeBox:SetWidth(50)
-		stackSizeBox:SetHeight(20)
-		stackSizeBox:SetNumeric(true)
-		flexPostFrame.stackSizeBox = stackSizeBox
+		local postingLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
+		postingLabel:SetPoint("TOPLEFT", 15, -45)
+		postingLabel:SetText(L["Posting:"])
 		
-		local numStacksLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
-		numStacksLabel:SetPoint("TOPLEFT", 15, -70)
-		numStacksLabel:SetText(L["Num Stacks:"])
 		local numStacksBox = TSMAPI.GUI:CreateInputBox(flexPostFrame, "TSMFlexPostNumStacksEditbox")
-		numStacksBox:SetPoint("TOPLEFT", 140, -65)
-		numStacksBox:SetWidth(50)
+		numStacksBox:SetPoint("TOPLEFT", 110, -40)
+		numStacksBox:SetWidth(40)
 		numStacksBox:SetHeight(20)
 		numStacksBox:SetNumeric(true)
 		flexPostFrame.numStacksBox = numStacksBox
 
+		local stacksOfLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
+		stacksOfLabel:SetPoint("TOPLEFT", 155, -45)
+		stacksOfLabel:SetText(L["stacks of"])
+
+		local stackSizeBox = TSMAPI.GUI:CreateInputBox(flexPostFrame, "TSMFlexPostStackSizeEditbox")
+		stackSizeBox:SetPoint("TOPLEFT", 220, -40)
+		stackSizeBox:SetWidth(40)
+		stackSizeBox:SetHeight(20)
+		stackSizeBox:SetNumeric(true)
+		flexPostFrame.stackSizeBox = stackSizeBox
+
 		local bidLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
-		bidLabel:SetPoint("TOPLEFT", 15, -100)
+		bidLabel:SetPoint("TOPLEFT", 15, -80)
 		bidLabel:SetText(L["Bid (per item):"])
 		local bidBox = CreateFrame("Frame", "TSMFlexPostBidBox", flexPostFrame, "MoneyInputFrameTemplate")
-		bidBox:SetPoint("TOPLEFT", 140, -100)
+		bidBox:SetPoint("TOPLEFT", 140, -80)
 		flexPostFrame.bidBox = bidBox
 		
 		local buyoutLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
-		buyoutLabel:SetPoint("TOPLEFT", 15, -130)
+		buyoutLabel:SetPoint("TOPLEFT", 15, -110)
 		buyoutLabel:SetText(L["Buyout (per item):"])
 		local buyoutBox = CreateFrame("Frame", "TSMFlexPostBuyoutBox", flexPostFrame, "MoneyInputFrameTemplate")
-		buyoutBox:SetPoint("TOPLEFT", 140, -130)
+		buyoutBox:SetPoint("TOPLEFT", 140, -110)
 		flexPostFrame.buyoutBox = buyoutBox
+
+		local summaryLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
+		summaryLabel:SetPoint("TOP", 0, -150)
+		summaryLabel:SetJustifyH("CENTER")
+		summaryLabel:SetText("")
+		flexPostFrame.summaryLabel = summaryLabel
+		
+		local function UpdateSummary()
+			if not flexPostFrame.itemString then return end
+			local stackSize = tonumber(flexPostFrame.stackSizeBox:GetText()) or 1
+			local numStacks = tonumber(flexPostFrame.numStacksBox:GetText()) or 1
+			local buyoutCopper = MoneyInputFrame_GetCopper(flexPostFrame.buyoutBox)
+			local totalCopper = buyoutCopper * stackSize * numStacks
+			
+			local marketValue = TSMAPI:GetItemValue(flexPostFrame.itemString, "DBMarket") or 0
+			local pctStr = ""
+			if marketValue > 0 and buyoutCopper > 0 then
+				local pct = floor(buyoutCopper / marketValue * 100)
+				local color = "|cff00ff00" -- green
+				if pct < 80 then color = "|cffff0000" -- red
+				elseif pct < 100 then color = "|cffffff00" -- yellow
+				end
+				pctStr = format(" (%s%d%%|r DBMarket)", color, pct)
+			end
+			
+			flexPostFrame.summaryLabel:SetText(format(L["Total Buyout: %s%s"], TSMAPI:FormatTextMoneyIcon(totalCopper), pctStr))
+		end
+		flexPostFrame.UpdateSummary = UpdateSummary
+		
+		flexPostFrame.stackSizeBox:HookScript("OnTextChanged", UpdateSummary)
+		flexPostFrame.numStacksBox:HookScript("OnTextChanged", UpdateSummary)
+		_G[flexPostFrame.buyoutBox:GetName().."Gold"]:HookScript("OnTextChanged", UpdateSummary)
+		_G[flexPostFrame.buyoutBox:GetName().."Silver"]:HookScript("OnTextChanged", UpdateSummary)
+		_G[flexPostFrame.buyoutBox:GetName().."Copper"]:HookScript("OnTextChanged", UpdateSummary)
 		
 		local confirmBtn = TSMAPI.GUI:CreateButton(flexPostFrame, 16)
 		confirmBtn:SetPoint("BOTTOMLEFT", 10, 10)
@@ -1177,5 +1213,8 @@ function private:ShowCustomPostWindow(data)
 	end
 	
 	flexPostFrame.confirmBtn:Enable()
+	if flexPostFrame.UpdateSummary then
+		flexPostFrame.UpdateSummary()
+	end
 	flexPostFrame:Show()
 end
