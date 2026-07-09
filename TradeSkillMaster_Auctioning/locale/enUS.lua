@@ -292,4 +292,10 @@ L["You do not have any players on your whitelist yet."] = true
 L["You've been undercut."] = true
 L["Your Buyout"] = true
 L["Your auction has not been undercut."] = true
-L["auctions of|r %s"] = true
+L["auctions of|r %s"] = trueL["Flex Post"] = true
+L["Please select an item from the log list first."] = true
+L["Stack Size:"] = true
+L["Num Stacks:"] = true
+L["Bid (per stack):"] = true
+L["Buyout (per stack):"] = true
+L["Confirm Post"] = true
