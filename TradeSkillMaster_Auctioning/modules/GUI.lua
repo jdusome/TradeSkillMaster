@@ -1067,37 +1067,35 @@ function private:ShowCustomPostWindow(data)
 		local stackSizeLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
 		stackSizeLabel:SetPoint("TOPLEFT", 15, -40)
 		stackSizeLabel:SetText(L["Stack Size:"])
-		local stackSizeBox = CreateFrame("EditBox", nil, flexPostFrame, "InputBoxTemplate")
-		stackSizeBox:SetPoint("TOPLEFT", 120, -35)
+		local stackSizeBox = TSMAPI.GUI:CreateInputBox(flexPostFrame, "TSMFlexPostStackSizeEditbox")
+		stackSizeBox:SetPoint("TOPLEFT", 140, -35)
 		stackSizeBox:SetWidth(50)
 		stackSizeBox:SetHeight(20)
-		stackSizeBox:SetAutoFocus(false)
 		stackSizeBox:SetNumeric(true)
 		flexPostFrame.stackSizeBox = stackSizeBox
 		
 		local numStacksLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
 		numStacksLabel:SetPoint("TOPLEFT", 15, -70)
 		numStacksLabel:SetText(L["Num Stacks:"])
-		local numStacksBox = CreateFrame("EditBox", nil, flexPostFrame, "InputBoxTemplate")
-		numStacksBox:SetPoint("TOPLEFT", 120, -65)
+		local numStacksBox = TSMAPI.GUI:CreateInputBox(flexPostFrame, "TSMFlexPostNumStacksEditbox")
+		numStacksBox:SetPoint("TOPLEFT", 140, -65)
 		numStacksBox:SetWidth(50)
 		numStacksBox:SetHeight(20)
-		numStacksBox:SetAutoFocus(false)
 		numStacksBox:SetNumeric(true)
 		flexPostFrame.numStacksBox = numStacksBox
 
 		local bidLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
 		bidLabel:SetPoint("TOPLEFT", 15, -100)
-		bidLabel:SetText(L["Bid (per stack):"])
+		bidLabel:SetText(L["Bid (per item):"])
 		local bidBox = CreateFrame("Frame", "TSMFlexPostBidBox", flexPostFrame, "MoneyInputFrameTemplate")
-		bidBox:SetPoint("TOPLEFT", 120, -100)
+		bidBox:SetPoint("TOPLEFT", 140, -100)
 		flexPostFrame.bidBox = bidBox
 		
 		local buyoutLabel = TSMAPI.GUI:CreateLabel(flexPostFrame)
 		buyoutLabel:SetPoint("TOPLEFT", 15, -130)
-		buyoutLabel:SetText(L["Buyout (per stack):"])
+		buyoutLabel:SetText(L["Buyout (per item):"])
 		local buyoutBox = CreateFrame("Frame", "TSMFlexPostBuyoutBox", flexPostFrame, "MoneyInputFrameTemplate")
-		buyoutBox:SetPoint("TOPLEFT", 145, -130)
+		buyoutBox:SetPoint("TOPLEFT", 140, -130)
 		flexPostFrame.buyoutBox = buyoutBox
 		
 		local confirmBtn = TSMAPI.GUI:CreateButton(flexPostFrame, 16)
@@ -1108,8 +1106,8 @@ function private:ShowCustomPostWindow(data)
 		confirmBtn:SetScript("OnClick", function()
 			local stackSize = tonumber(flexPostFrame.stackSizeBox:GetText()) or 1
 			local numStacks = tonumber(flexPostFrame.numStacksBox:GetText()) or 1
-			local bid = MoneyInputFrame_GetCopper(flexPostFrame.bidBox)
-			local buyout = MoneyInputFrame_GetCopper(flexPostFrame.buyoutBox)
+			local bid = MoneyInputFrame_GetCopper(flexPostFrame.bidBox) * stackSize
+			local buyout = MoneyInputFrame_GetCopper(flexPostFrame.buyoutBox) * stackSize
 			
 			local postTime = flexPostFrame.postTime or 2
 			
@@ -1166,8 +1164,8 @@ function private:ShowCustomPostWindow(data)
 	if queueInfo then
 		flexPostFrame.stackSizeBox:SetText(tostring(queueInfo.stackSize or 1))
 		flexPostFrame.numStacksBox:SetText(tostring(queueInfo.numStacks or 1))
-		MoneyInputFrame_SetCopper(flexPostFrame.bidBox, queueInfo.bid or 0)
-		MoneyInputFrame_SetCopper(flexPostFrame.buyoutBox, queueInfo.buyout or 0)
+		MoneyInputFrame_SetCopper(flexPostFrame.bidBox, floor((queueInfo.bid or 0) / (queueInfo.stackSize or 1)))
+		MoneyInputFrame_SetCopper(flexPostFrame.buyoutBox, floor((queueInfo.buyout or 0) / (queueInfo.stackSize or 1)))
 		flexPostFrame.postTime = queueInfo.postTime or 2
 	else
 		flexPostFrame.stackSizeBox:SetText("1")
