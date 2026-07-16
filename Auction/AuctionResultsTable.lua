@@ -235,65 +235,76 @@ local methods = {
 
 	RefreshRowData = function(rt)
 		if not rt.auctionData then return end
-		wipe(rt.data)
-		wipe(rt.displayRows)
+		rt.refreshId = (rt.refreshId or 0) + 1
+		local currentRefreshId = rt.refreshId
 		
-		local function RowSort(a, b)
-			if a[rt.sortInfo.column].args[1] == nil then return end
+		TSMAPI.Threading:Start(function(thread)
+			if rt.refreshId ~= currentRefreshId then return end
+			wipe(rt.data)
+			wipe(rt.displayRows)
 			
-			local aVal
-			local bVal
-			if getn(a[rt.sortInfo.column].args) == 4 then
-				aVal = a[rt.sortInfo.column].args[4]
-				bVal = b[rt.sortInfo.column].args[4]
-			else
-				aVal = a[rt.sortInfo.column].args[1]
-				bVal = b[rt.sortInfo.column].args[1]
-			end
-			-- local aVal = a[rt.sortInfo.column].args[1]
-			-- local bVal = b[rt.sortInfo.column].args[1]
-			
-			if type(aVal) ~= "string" or type(bVal) ~= "string" then
-				aVal = tonumber(aVal) or 0
-				bVal = tonumber(bVal) or 0
-			end
-			if aVal == bVal then
-				-- make this a stable sort (abitrarily) by using table reference strings
-				return tostring(a) < tostring(b)
-			end
-			if rt.sortInfo.ascending then
-				return aVal < bVal
-			else
-				return aVal > bVal
-			end
-		end
-		
-		local tmp = {}
-		for _, auction in ipairs(rt.auctionData) do
-			local itemString = auction:GetItemString()
-			local itemRowData = {}
-			for i, data in ipairs(auction.compactRecords) do
-				local rowTbl = GetRowTable(rt, data, #auction.compactRecords > 1)
-				rowTbl.indented = true
-				tinsert(itemRowData, rowTbl)
+			local function RowSort(a, b)
+				if a[rt.sortInfo.column].args[1] == nil then return end
+				
+				local aVal
+				local bVal
+				if getn(a[rt.sortInfo.column].args) == 4 then
+					aVal = a[rt.sortInfo.column].args[4]
+					bVal = b[rt.sortInfo.column].args[4]
+				else
+					aVal = a[rt.sortInfo.column].args[1]
+					bVal = b[rt.sortInfo.column].args[1]
+				end
+				
+				if type(aVal) ~= "string" or type(bVal) ~= "string" then
+					aVal = tonumber(aVal) or 0
+					bVal = tonumber(bVal) or 0
+				end
+				if aVal == bVal then
+					-- make this a stable sort (abitrarily) by using table reference strings
+					return tostring(a) < tostring(b)
+				end
+				if rt.sortInfo.ascending then
+					return aVal < bVal
+				else
+					return aVal > bVal
+				end
 			end
 			
-			sort(itemRowData, RowSort)
-			if itemRowData[1] then
-				itemRowData[1].indented = false
+			local tmp = {}
+			for idx, auction in ipairs(rt.auctionData) do
+				if rt.refreshId ~= currentRefreshId then return end
+				local itemString = auction:GetItemString()
+				local itemRowData = {}
+				for i, data in ipairs(auction.compactRecords) do
+					local rowTbl = GetRowTable(rt, data, #auction.compactRecords > 1)
+					rowTbl.indented = true
+					tinsert(itemRowData, rowTbl)
+				end
+				
+				sort(itemRowData, RowSort)
+				if itemRowData[1] then
+					itemRowData[1].indented = false
+				end
+				tinsert(tmp, itemRowData)
+				
+				if idx % 100 == 0 then
+					thread:Yield()
+				end
 			end
-			tinsert(tmp, itemRowData)
-		end
-		
-		sort(tmp, function(a, b) return RowSort(a[1], b[1]) end)
-		
-		for _, itemRows in ipairs(tmp) do
-			for _, row in ipairs(itemRows) do
-				tinsert(rt.data, row)
+			
+			if rt.refreshId ~= currentRefreshId then return end
+			sort(tmp, function(a, b) return RowSort(a[1], b[1]) end)
+			
+			for _, itemRows in ipairs(tmp) do
+				for _, row in ipairs(itemRows) do
+					tinsert(rt.data, row)
+				end
 			end
-		end
-		
-		rt:DrawRows()
+			
+			if rt.refreshId ~= currentRefreshId then return end
+			rt:DrawRows()
+		end, 0.5)
 	end,
 
 	SetData = function(rt, auctionData)

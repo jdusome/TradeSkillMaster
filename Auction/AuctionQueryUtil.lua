@@ -185,12 +185,10 @@ function private:CheckNextCombinedQuery()
 	TSMAPI.AuctionScan:GetNumPages(private.combinedQueries[1], NumPagesCallback)
 end
 
--- OPTIMIZED: Reduce yields and pre-cache item info for faster processing
 local function GenerateSearchTerms(names, itemList, isReversed)
 	sort(names)
 	if not ReduceStrings(names) then return end -- run the reduction
 	
-	-- OPTIMIZED: Pre-cache all item names to avoid repeated GetSafeItemInfo calls
 	local itemNameCache = {}
 	for _, itemString in ipairs(itemList) do
 		local itemName = TSMAPI:GetSafeItemInfo(itemString)
@@ -201,22 +199,21 @@ local function GenerateSearchTerms(names, itemList, isReversed)
 	
 	-- create a table associating all the reduced names to a list of items
 	local temp = {}
-	local yieldCounter = 0  -- OPTIMIZED: Track iterations for yielding
+	local yieldCounter = 0
 	for i, filterName in ipairs(names) do
-		local escapedFilter = TSMAPI:StrEscape(filterName)
+		local escapedFilter = "^" .. TSMAPI:StrEscape(filterName)
 		for j, itemString in ipairs(itemList) do
-			local itemName = itemNameCache[itemString]  -- OPTIMIZED: Use cached name
-			if itemName and strfind(itemName, "^"..escapedFilter) then
+			local itemName = itemNameCache[itemString]
+			if itemName and strfind(itemName, escapedFilter) then
 				temp[filterName] = temp[filterName] or {}
 				tinsert(temp[filterName], itemString)
 			end
-		end
-		if not private.thread then return end
-		
-		-- OPTIMIZED: Only yield every 10 items instead of every item
-		yieldCounter = yieldCounter + 1
-		if yieldCounter % 10 == 0 then
-			private.thread:Yield()
+			
+			yieldCounter = yieldCounter + 1
+			if yieldCounter % 5000 == 0 then
+				if not private.thread then return end
+				private.thread:Yield()
+			end
 		end
 	end
 	

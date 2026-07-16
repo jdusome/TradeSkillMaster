@@ -179,6 +179,7 @@ end
 function Util:StopScan()
 	TSMAPI:CancelFrame("shoppingRestartSniper")
 	TSMAPI.AuctionScan:StopScan()
+	private.isScanning = false
 	private:ScanComplete()
 end
 
@@ -190,6 +191,7 @@ function private:PrepareForScan(callback, isLastPageScan)
 	private.searchItem = nil
 	private.isLastPageScan = isLastPageScan
 	private.callback = callback
+	private.isScanning = true
 	wipe(private.auctions)
 	if private.isLastPageScan then
 		private.searchFrame.statusBar:SetStatusText("Scanning last page...")
@@ -231,34 +233,46 @@ function private.ScanCallback(event, ...)
 	elseif event == "SCAN_COMPLETE" then
 		if not private.filterList or not private.filterList[1] then return end -- protect against sniper scan starts causing issues
 		local data = ...
-		if private.filterList[1].items then
-			for _, itemString in ipairs(private.filterList[1].items) do
-				if data[itemString] then
-					if data[itemString].isBaseItem then
-						for iString, auctionitem in pairs(data) do
-							if iString ~= itemString and TSMAPI:GetBaseItemString(iString) == itemString then
-								auctionitem.query = private.filterList[1]
-								private:ProcessItem(iString, auctionitem)
+		
+		local currentFilterList = private.filterList
+		TSMAPI.Threading:Start(function(thread)
+			if currentFilterList[1].items then
+				for _, itemString in ipairs(currentFilterList[1].items) do
+					if data[itemString] then
+						if data[itemString].isBaseItem then
+							for iString, auctionitem in pairs(data) do
+								if not private.isScanning then return end
+								if iString ~= itemString and TSMAPI:GetBaseItemString(iString) == itemString then
+									auctionitem.query = currentFilterList[1]
+									private:ProcessItem(iString, auctionitem)
+									thread:Yield()
+								end
 							end
+						else
+							if not private.isScanning then return end
+							data[itemString].query = currentFilterList[1]
+							private:ProcessItem(itemString, data[itemString])
+							thread:Yield()
 						end
-					else
-						data[itemString].query = private.filterList[1]
-						private:ProcessItem(itemString, data[itemString])
+					end
+				end
+			else
+				for itemString, auctionData in pairs(data) do
+					if not private.isScanning then return end
+					if not auctionData.isBaseItem then
+						auctionData.query = currentFilterList[1]
+						private:ProcessItem(itemString, auctionData)
+						thread:Yield()
 					end
 				end
 			end
-		else
-			for itemString, auctionData in pairs(data) do
-				if not auctionData.isBaseItem then
-					auctionData.query = private.filterList[1]
-					private:ProcessItem(itemString, auctionData)
-				end
-			end
-		end
-		private:UpdateRT()
-		private.searchFrame.rt:ClearSelection()
-		tremove(private.filterList, 1)
-		private:ScanNextFilter()
+			
+			if not private.isScanning then return end
+			private:UpdateRT()
+			private.searchFrame.rt:ClearSelection()
+			tremove(private.filterList, 1)
+			private:ScanNextFilter()
+		end, 0.5)
 	elseif event == "SCAN_LAST_PAGE_COMPLETE" then
 		local data = ...
 		for itemString, auctionData in pairs(data) do

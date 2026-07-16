@@ -151,9 +151,15 @@ function private.LoadTooltip(tipFrame, link, quantity)
 	local itemString = TSMAPI:GetItemString(link)
 	if not itemString then return end
 	local lines = GetTooltipLines(itemString, quantity)
-	if #lines > 0 then
+	local itemId = strmatch(itemString, "%d+")
+	
+	if #lines > 0 or itemId then
 		tooltipLib:AddLine(tipFrame, " ", 1, 1, 0, TSM.db.profile.embeddedTooltip)
 		local r, g, b = unpack(TSM.db.profile.design.inlineColors.tooltip or { 130, 130, 250 })
+
+		if itemId then
+			tooltipLib:AddDoubleLine(tipFrame, L["Item ID:"], itemId, r / 255, g / 255, b / 255, r / 255, g / 255, b / 255, TSM.db.profile.embeddedTooltip)
+		end
 
 		for i = 1, #lines do
 			if type(lines[i]) == "table" then
